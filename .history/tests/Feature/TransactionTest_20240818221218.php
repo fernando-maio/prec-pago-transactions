@@ -1,0 +1,94 @@
+<?php
+
+namespace Tests\Feature;
+
+use Tests\TestCase;
+use Carbon\Carbon;
+
+class TransactionTest extends TestCase
+{
+    private const TRANSACTION_URL = '/api/transactions';
+    private const STATISTICS_URL = '/api/statistics';
+    private const AMOUNT = 12.33;
+
+    public function test_it_creates_a_transaction()
+    {
+        $response = $this->postJson(self::TRANSACTION_URL, [
+            'amount' => self::AMOUNT,
+            'timestamp' => Carbon::now('UTC')->format('Y-m-d\TH:i:s.v\Z'),
+        ]);
+
+        $response->assertStatus(201);
+    }
+
+    public function test_it_returns_statistics()
+    {
+        $this->getJson(self::TRANSACTION_URL, []);
+
+        $response = $this->getJson(self::STATISTICS_URL);
+
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                'sum',
+                'avg',
+                'max',
+                'min',
+                'count'
+            ]);
+    }
+
+    public function test_it_deletes_all_transactions()
+    {
+        $this->deleteJson(self::TRANSACTION_URL)
+            ->assertStatus(204);
+    }
+
+    public function test_it_requires_an_amount_and_timestamp()
+    {
+        $response = $this->postJson(self::TRANSACTION_URL, [
+            'timestamp' => Carbon::now('UTC')->toISOString(),
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['amount']);
+
+        $response = $this->postJson(self::TRANSACTION_URL, [
+            'amount' => self::AMOUNT,
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['timestamp']);
+    }
+
+    public function test_it_requires_valid_amount_and_timestamp()
+    {
+        $response = $this->postJson(self::TRANSACTION_URL, [
+            'amount' => 'invalid_amount',
+            'timestamp' => Carbon::now('UTC')->toISOString(),
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['amount']);
+
+        $response = $this->postJson(self::TRANSACTION_URL, [
+            'amount' => self::AMOUNT,
+            'timestamp' => 'invalid_timestamp',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['timestamp']);
+    }
+
+    public function test_it_returns_400_for_invalid_json()
+{
+    $invalidJson = '{"amount": 100, "timestamp": "2023-08-18T12:00:00.000Z"'; // JSON malformado
+
+    $response = $this->postJson('/api/transactions', $invalidJson);
+
+    $response->assertStatus(400)
+             ->assertJson([
+                 'success' => false,
+                 'message' => 'O JSON enviado é inválido.',
+             ]);
+}
+}
